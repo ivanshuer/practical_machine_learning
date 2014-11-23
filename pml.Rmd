@@ -1,0 +1,53 @@
+---
+output: html_document
+---
+
+# Qualitative Activity Recognition 
+In this report, we aim to build a machine learning algorithm to predict activity quality from activity monitors. Our main objective is to predict the manner participants perform barbell lifts using a data set from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. 
+
+## Exploratory data analysis
+We first read in the training data and perform some basic exploratory data analysis to determine which variables should be selected as predictors
+```{r, echo=TRUE, cache=TRUE}
+library(caret)
+library(randomForest)
+pml.data <- read.table("pml-training.csv", sep = ",", header = TRUE, na.strings = c("NA", "#DIV/0!"))
+summary(pml.data)
+```
+
+From the results, we can exclude order, user and time related variables first from our predictive model. Next, we also delete variables which have a significant amount of missing values. Those variables are mainly summary statistics of other variables, including skewness, kurtosis, max, min, amplitude, variance, average and standard deviation. 
+```{r, echo=TRUE, cache=TRUE}
+delete.info <- grep("^X$|user_name|raw_timestamp_part_1|raw_timestamp_part_2|cvtd_timestamp|new_window|num_window", colnames(pml.data))
+delete.var <- grep("^(kurtosi|skewness|amplitude|max|min|var|avg|stddev)", colnames(pml.data))
+delete.index <- c(delete.info, delete.var)
+train.data <- pml.data[, -delete.index]
+```
+
+## Model Building
+In this section, we build a random forest predictive model to predict people activity manner. The output variable is classe and use all other remaining variables as predictors. We set seed as 125 to create a training dataset out of 70% of the whole dataset. The remaining 30% dataset is used for cross validation. After this partition, the training dataset has 13737 observations and cross validation has 5885 observations. We then build the random forest model with mtry parameter set to fixed value of 20.
+```{r, echo=TRUE, cache=TRUE}
+set.seed(125)
+in.train <- createDataPartition(y = train.data$classe, p=0.7, list=FALSE)
+training <- train.data[in.train, ]
+testing <- train.data[-in.train, ]
+
+mod.fit <- train(classe ~ ., method="rf", data = training, tuneGrid = data.frame(mtry = 20))
+```
+The trained model has confusion matrix as: 
+```{r kable, echo=TRUE}
+library(knitr)
+confMtx <- kable(mod.fit$finalModel$confusion)
+```
+which shows the model has high rate of classification accuracy.
+
+## Cross Validation
+After model has been built, we use the fitted model to predict new classe variables on the test dataset. 
+```{r, echo=TRUE, cache=TRUE}
+set.seed(125)
+in.train <- createDataPartition(y = train.data$classe, p=0.7, list=FALSE)
+training <- train.data[in.train, ]
+testing <- train.data[-in.train, ]
+
+pred <- predict(mod.fit, newdata = testing)
+confusionMatrix(pred, testing$classe)
+```
+From the confusion matrix, we can see that the model has accuracy of 0.9941 on the test dataset which verifys that our model has high out of sample accuracy for prediction. Therefore, we have obtained the accurate random forest model to predict barbell lifts manner.
